@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Civic Issue Reporter</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha2d24-3R6v/2fF2Zf/tG2eO6x2f9p3p9x2z1v5p9q8p9q8w9z9p" crossorigin=""/>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #map {
+            height: 300px;
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid #e5e7eb;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen p-4">
+
+    <!-- Main container card -->
+    <div class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-2xl border border-gray-200">
+
+        <!-- Title Block -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl sm:text-5xl font-extrabold text-blue-800 tracking-tight">
+                Civic Issue Reporting
+            </h1>
+            <p class="text-xl sm:text-2xl mt-2 font-semibold text-gray-600">
+                A system for a better community.
+            </p>
+        </div>
+
+        <!-- Description Block -->
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-6 mb-8 text-center">
+            <p class="text-lg text-blue-800 font-medium">
+                Welcome to our crowdsourced system. Your report helps us identify and resolve issues in our community faster. Please provide the details of the problem you've found.
+            </p>
+        </div>
+        
+        <!-- Reporting Form -->
+        <form id="issue-form" class="space-y-6">
+
+            <!-- Category Block -->
+            <div>
+                <label for="category" class="block text-gray-700 font-semibold mb-2 text-lg">
+                    Select an Issue Category:
+                </label>
+                <select id="category" name="category" required
+                    class="block w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700">
+                    <option value="" disabled selected class="text-gray-400">-- Choose a category --</option>
+                    <option value="potholes">Potholes</option>
+                    <option value="streetlights">Broken Streetlights</option>
+                    <option value="waste">Illegal Dumping / Waste</option>
+                    <option value="water">Water Leak / Supply Issue</option>
+                    <option value="graffiti">Graffiti</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+
+            <!-- Description Block -->
+            <div>
+                <label for="description" class="block text-gray-700 font-semibold mb-2 text-lg">
+                    Describe the Issue:
+                </label>
+                <textarea id="description" name="description" rows="5" required
+                    class="block w-full px-4 py-3 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 placeholder-gray-400"
+                    placeholder="Provide a detailed description of the issue, including its location and severity..."></textarea>
+            </div>
+            
+            <!-- Map Location Section -->
+            <div>
+                <div class="flex flex-col sm:flex-row items-center justify-between mb-2 space-y-2 sm:space-y-0 sm:space-x-2">
+                    <label class="block text-gray-700 font-semibold text-lg flex-grow">
+                        Pinpoint the Location:
+                    </label>
+                    <div class="flex items-center space-x-2">
+                        <select id="live-location-time" class="p-2 border rounded-lg text-gray-700">
+                            <option value="1">1 min</option>
+                            <option value="5" selected>5 min</option>
+                            <option value="15">15 min</option>
+                            <option value="30">30 min</option>
+                        </select>
+                        <button type="button" id="live-location-btn" class="bg-blue-500 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors duration-300 shadow-sm">
+                            Share Live Location
+                        </button>
+                    </div>
+                </div>
+                <div id="map"></div>
+                <p id="location-display" class="mt-2 text-sm text-gray-500 text-center"></p>
+                <div id="live-location-timer" class="mt-2 text-sm text-center font-bold text-blue-600 hidden"></div>
+                <!-- Hidden inputs to store coordinates -->
+                <input type="hidden" id="lat" name="latitude">
+                <input type="hidden" id="lon" name="longitude">
+            </div>
+
+            <!-- Media Upload Section -->
+            <div>
+                <label for="media" class="block text-gray-700 font-semibold mb-2 text-lg">
+                    Add Photos or Videos:
+                </label>
+                <div class="flex items-center space-x-4">
+                    <label class="w-full sm:w-auto flex items-center justify-center bg-white border border-gray-300 rounded-xl cursor-pointer hover:bg-gray-50 transition-colors duration-300 p-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-gray-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l4-4m0 0a2 2 0 012.828 0m-8 6h.01M4 20h16a2 2 0 002-2V6a2 2 0 00-2-2H4a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        <span id="file-name" class="text-gray-600 font-medium">Choose file...</span>
+                        <input type="file" id="media" name="media" accept="image/*,video/*" class="hidden">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Submit Button -->
+            <div>
+                <button type="submit"
+                    class="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-md hover:bg-blue-700 transition-colors duration-300 text-lg">
+                    Submit Report
+                </button>
+            </div>
+
+        </form>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha2d24-2j9Z9W6y9z3y9v3z8x8x8j8x9w9y9v9w8z9y9p8x9" crossorigin=""></script>
+    <script>
+        // Get references to elements
+        const fileNameSpan = document.getElementById('file-name');
+        const fileInput = document.getElementById('media');
+        const latInput = document.getElementById('lat');
+        const lonInput = document.getElementById('lon');
+        const locationDisplay = document.getElementById('location-display');
+        const liveLocationBtn = document.getElementById('live-location-btn');
+        const liveLocationTimeSelect = document.getElementById('live-location-time');
+        const liveLocationTimerEl = document.getElementById('live-location-timer');
+
+        let timerInterval;
+
+        // Update file input label
+        fileInput.addEventListener('change', function() {
+            if (this.files.length > 0) {
+                fileNameSpan.textContent = this.files[0].name;
+            } else {
+                fileNameSpan.textContent = 'Choose file...';
+            }
+        });
+
+        // Initialize the map
+        const map = L.map('map').setView([28.5355, 77.3910], 13); // Default view is Greater Noida, India
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Add a draggable marker
+        const marker = L.marker([28.5355, 77.3910], {
+            draggable: true
+        }).addTo(map);
+
+        // Update the hidden inputs and display when the marker is dragged
+        marker.on('dragend', function(event) {
+            const position = marker.getLatLng();
+            updateLocation(position.lat, position.lng, false);
+        });
+        
+        // Function to update location state
+        function updateLocation(lat, lon, isLive) {
+            marker.setLatLng([lat, lon]);
+            latInput.value = lat;
+            lonInput.value = lon;
+            if (isLive) {
+                locationDisplay.textContent = `Live Location: Lat ${lat.toFixed(4)}, Lon ${lon.toFixed(4)}`;
+            } else {
+                locationDisplay.textContent = `Location: Lat ${lat.toFixed(4)}, Lon ${lon.toFixed(4)}`;
+                // Clear any running timers
+                clearInterval(timerInterval);
+                liveLocationTimerEl.classList.add('hidden');
+            }
+        }
+
+        // Set initial values
+        updateLocation(28.5355, 77.3910, false);
+        locationDisplay.textContent = `Location: Drag the pin to your location.`;
+
+        // Function to get and set current location
+        liveLocationBtn.addEventListener('click', function() {
+            if ('geolocation' in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        const { latitude, longitude } = position.coords;
+                        map.setView([latitude, longitude], 16);
+                        updateLocation(latitude, longitude, true);
+
+                        // Start the countdown timer
+                        const durationInMinutes = parseInt(liveLocationTimeSelect.value, 10);
+                        const endTime = Date.now() + durationInMinutes * 60 * 1000;
+                        liveLocationTimerEl.classList.remove('hidden');
+
+                        clearInterval(timerInterval);
+                        timerInterval = setInterval(() => {
+                            const timeLeft = endTime - Date.now();
+                            if (timeLeft <= 0) {
+                                clearInterval(timerInterval);
+                                liveLocationTimerEl.textContent = "Live location sharing expired.";
+                                liveLocationTimerEl.classList.add('text-red-600');
+                                liveLocationTimerEl.classList.remove('text-blue-600');
+                            } else {
+                                const minutes = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                                const seconds = Math.floor((timeLeft % (1000 * 60)) / 1000);
+                                liveLocationTimerEl.textContent = `Live sharing ends in: ${minutes}m ${seconds}s`;
+                            }
+                        }, 1000);
+
+                    },
+                    (error) => {
+                        console.error('Error getting current location:', error);
+                        locationDisplay.textContent = 'Could not get location. Please enable location services.';
+                        liveLocationTimerEl.classList.add('hidden');
+                    }
+                );
+            } else {
+                locationDisplay.textContent = 'Geolocation is not supported by your browser.';
+            }
+        });
+    </script>
+
+</body>
+</html>
