@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Municipality Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.4);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            padding-top: 60px;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            position: relative;
+        }
+        .close-btn {
+            color: #aaa;
+            position: absolute;
+            right: 16px;
+            top: 10px;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-btn:hover, .close-btn:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen p-4">
+
+    <!-- Municipality Login Screen -->
+    <div id="login-container" class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-sm border border-gray-200 text-center">
+        <h2 class="text-3xl font-bold text-teal-800 mb-6">Municipality Login</h2>
+        <input type="password" id="muni-password" placeholder="Enter password" class="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:outline-none focus:ring-2 focus:ring-teal-500">
+        <button id="login-btn" class="w-full bg-teal-600 text-white font-bold py-3 px-6 rounded-xl shadow-md hover:bg-teal-700 transition-colors duration-300">Login</button>
+        <p id="login-status" class="mt-4 text-sm text-red-500 hidden"></p>
+    </div>
+
+    <!-- Municipality Dashboard -->
+    <div id="dashboard-container" class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-4xl border border-gray-200 hidden">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-3xl font-bold text-teal-800">Municipality Dashboard</h2>
+            <button id="logout-btn" class="bg-red-500 text-white text-sm px-4 py-2 rounded-lg hover:bg-red-600 transition-colors duration-300 shadow-sm">Logout</button>
+        </div>
+
+        <div>
+            <h3 class="text-2xl font-bold text-gray-700 mb-4">Reported Issues</h3>
+            <div id="issues-list" class="space-y-4">
+                <!-- Issues will be dynamically added here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="edit-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Update Issue Status</h3>
+            <div class="space-y-4">
+                <div class="flex items-center space-x-2">
+                    <label for="progress-slider" class="text-sm font-medium text-gray-700">Progress:</label>
+                    <input type="range" id="progress-slider" min="0" max="100" value="0" class="flex-grow">
+                    <span id="progress-value" class="text-sm font-bold text-gray-800">0%</span>
+                </div>
+                <div class="flex flex-col">
+                    <label for="progress-description" class="text-sm font-medium text-gray-700">Progress Description:</label>
+                    <textarea id="progress-description" rows="3" placeholder="e.g. 'Waiting for new parts to arrive'" class="p-2 border border-gray-300 rounded-lg mt-1"></textarea>
+                </div>
+                <div class="flex flex-col">
+                    <label for="estimated-time" class="text-sm font-medium text-gray-700">Estimated Time to Complete:</label>
+                    <input type="text" id="estimated-time" placeholder="e.g. '3 days'" class="p-2 border border-gray-300 rounded-lg mt-1">
+                </div>
+                <button id="save-updates-btn" class="w-full bg-teal-600 text-white font-bold py-3 px-6 rounded-xl shadow-md hover:bg-teal-700 transition-colors duration-300">Save Updates</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Initialization
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Authenticate
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        if (initialAuthToken) {
+            signInWithCustomToken(auth, initialAuthToken).catch(error => console.error("Firebase auth error:", error));
+        } else {
+            signInAnonymously(auth).catch(error => console.error("Firebase auth error:", error));
+        }
+
+        // Municipality password check (NOTE: This is for demonstration only. A real app would use secure backend authentication.)
+        const muniPassword = 'muni123';
+        const loginContainer = document.getElementById('login-container');
+        const dashboardContainer = document.getElementById('dashboard-container');
+        const passwordInput = document.getElementById('muni-password');
+        const loginBtn = document.getElementById('login-btn');
+        const loginStatus = document.getElementById('login-status');
+        const logoutBtn = document.getElementById('logout-btn');
+        const issuesListEl = document.getElementById('issues-list');
+
+        // Modal Elements
+        const editModal = document.getElementById('edit-modal');
+        const closeBtn = document.querySelector('.close-btn');
+        const progressSlider = document.getElementById('progress-slider');
+        const progressValueEl = document.getElementById('progress-value');
+        const progressDescriptionEl = document.getElementById('progress-description');
+        const estimatedTimeEl = document.getElementById('estimated-time');
+        const saveUpdatesBtn = document.getElementById('save-updates-btn');
+        let currentDocId = null;
+
+        // Event listeners for modal
+        closeBtn.onclick = function() {
+            editModal.style.display = 'none';
+        }
+        window.onclick = function(event) {
+            if (event.target == editModal) {
+                editModal.style.display = 'none';
+            }
+        }
+        progressSlider.oninput = function() {
+            progressValueEl.textContent = this.value + '%';
+        }
+
+        // Login and Logout
+        loginBtn.addEventListener('click', () => {
+            if (passwordInput.value === muniPassword) {
+                loginContainer.classList.add('hidden');
+                dashboardContainer.classList.remove('hidden');
+                setupRealtimeListener();
+            } else {
+                loginStatus.textContent = 'Incorrect password.';
+                loginStatus.classList.remove('hidden');
+            }
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            dashboardContainer.classList.add('hidden');
+            loginContainer.classList.remove('hidden');
+            passwordInput.value = '';
+        });
+
+        function setupRealtimeListener() {
+            const collectionPath = `/artifacts/${appId}/public/data/issues`;
+            const issuesCollection = collection(db, collectionPath);
+            console.log(`Listening for issues at: ${collectionPath}`);
+
+            onSnapshot(issuesCollection, (snapshot) => {
+                issuesListEl.innerHTML = '';
+                snapshot.forEach((doc) => {
+                    const issue = doc.data();
+                    const docId = doc.id;
+                    
+                    const card = document.createElement('div');
+                    card.classList.add('bg-white', 'rounded-xl', 'p-4', 'shadow', 'border', 'border-gray-200');
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <h4 class="text-lg font-bold text-gray-800">${issue.category}</h4>
+                            <span class="text-sm font-semibold p-1 px-2 rounded-full text-white ${
+                                issue.status === 'Pending' ? 'bg-yellow-500' :
+                                issue.status === 'Ongoing' ? 'bg-orange-500' : 'bg-green-500'
+                            }">${issue.status}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">${issue.description}</p>
+                        <p class="text-xs text-gray-500 mb-2">
+                            Lat: ${issue.latitude.toFixed(4)}, Lon: ${issue.longitude.toFixed(4)}
+                        </p>
+                        ${issue.progress ? `<p class="text-xs text-blue-600 font-bold mt-2">Progress: ${issue.progress}</p>` : ''}
+                        ${issue.estimatedTime ? `<p class="text-xs text-blue-600 font-bold">Estimated Time: ${issue.estimatedTime}</p>` : ''}
+                        
+                        <div class="flex space-x-2 mt-4">
+                            <button class="status-ongoing-btn bg-orange-500 text-white text-sm px-3 py-1 rounded-lg hover:bg-orange-600">Set Ongoing</button>
+                            <button class="status-completed-btn bg-green-500 text-white text-sm px-3 py-1 rounded-lg hover:bg-green-600">Set Completed</button>
+                            <button class="edit-btn bg-indigo-500 text-white text-sm px-3 py-1 rounded-lg hover:bg-indigo-600">Update Details</button>
+                        </div>
+                    `;
+                    
+                    // Add event listeners for status change and edit
+                    card.querySelector('.status-ongoing-btn').addEventListener('click', async () => {
+                        const docRef = doc(db, collectionPath, docId);
+                        await updateDoc(docRef, { status: 'Ongoing' });
+                    });
+                    
+                    card.querySelector('.status-completed-btn').addEventListener('click', async () => {
+                        const docRef = doc(db, collectionPath, docId);
+                        await updateDoc(docRef, { status: 'Completed' });
+                    });
+
+                    card.querySelector('.edit-btn').addEventListener('click', () => {
+                        currentDocId = docId;
+                        progressSlider.value = issue.progress || 0;
+                        progressValueEl.textContent = (issue.progress || 0) + '%';
+                        progressDescriptionEl.value = issue.progressDescription || '';
+                        estimatedTimeEl.value = issue.estimatedTime || '';
+                        editModal.style.display = 'block';
+                    });
+
+                    issuesListEl.appendChild(card);
+                });
+            }, (error) => {
+                console.error("Error fetching issues: ", error);
+            });
+        }
+        
+        // Save updates from the modal
+        saveUpdatesBtn.addEventListener('click', async () => {
+            if (currentDocId) {
+                const docRef = doc(db, `/artifacts/${appId}/public/data/issues`, currentDocId);
+                const progressPercentage = progressSlider.value;
+                const progressDescription = progressDescriptionEl.value;
+                const estimatedTime = estimatedTimeEl.value;
+                
+                await updateDoc(docRef, {
+                    progress: progressPercentage,
+                    progressDescription: progressDescription,
+                    estimatedTime: estimatedTime,
+                    status: 'Ongoing' // Automatically set to Ongoing when updates are made
+                });
+                editModal.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

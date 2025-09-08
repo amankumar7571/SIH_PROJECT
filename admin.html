@@ -232,8 +232,6 @@
                 unsubscribeFromIssues();
             }
 
-            // FIX: Changed the collection path to a public path to resolve the permission error.
-            // You will also need to update the index.html file to save reports to this same path.
             const collectionPath = `/artifacts/${appId}/public/data/issues`;
             const issuesCollection = collection(db, collectionPath);
             console.log(`Listening for issues at: ${collectionPath}`);
@@ -271,6 +269,8 @@
                         <p class="text-xs text-gray-500 mb-2">
                             Lat: ${issue.latitude.toFixed(4)}, Lon: ${issue.longitude.toFixed(4)}
                         </p>
+                        ${issue.progressDescription ? `<p class="text-xs text-blue-600 font-bold mt-2">Progress: ${issue.progress}% - ${issue.progressDescription}</p>` : ''}
+                        ${issue.estimatedTime ? `<p class="text-xs text-blue-600 font-bold">ETA: ${issue.estimatedTime}</p>` : ''}
                         <div class="flex space-x-2 mt-4">
                             <select class="status-select flex-grow p-2 text-sm rounded-lg border border-gray-300">
                                 <option value="Pending" ${issue.status === 'Pending' ? 'selected' : ''}>Pending</option>
