@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 10;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0);
+            background-color: rgba(0,0,0,0.4);
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+            padding-top: 60px;
+        }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            position: relative;
+        }
+        .close-btn {
+            color: #aaa;
+            position: absolute;
+            right: 16px;
+            top: 10px;
+            font-size: 28px;
+            font-weight: bold;
+        }
+        .close-btn:hover, .close-btn:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen p-4">
+
+    <!-- Admin Login Screen -->
+    <div id="login-container" class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-sm border border-gray-200 text-center">
+        <h2 class="text-3xl font-bold text-blue-800 mb-6">Admin Login</h2>
+        <input type="password" id="admin-password" placeholder="Enter password" class="w-full p-3 rounded-xl border border-gray-300 mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <button id="login-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-md hover:bg-blue-700 transition-colors duration-300">Login</button>
+        <p id="login-status" class="mt-4 text-sm text-red-500 hidden"></p>
+    </div>
+
+    <!-- Admin Dashboard -->
+    <div id="dashboard-container" class="bg-white rounded-2xl shadow-2xl p-6 sm:p-8 w-full max-w-4xl border border-gray-200 hidden">
+        <div class="flex justify-between items-center mb-6">
+            <h2 class="text-3xl font-bold text-blue-800">Admin Dashboard</h2>
+            <button id="logout-btn" class="bg-red-500 text-white text-sm px-4 py-2 rounded-lg hover:bg-red-600 transition-colors duration-300 shadow-sm">Logout</button>
+        </div>
+
+        <!-- Dashboard Metrics -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+            <div class="bg-blue-100 p-4 rounded-xl text-center shadow-md">
+                <p class="text-2xl font-bold text-blue-800" id="total-count">0</p>
+                <p class="text-sm text-blue-600">Total Issues</p>
+            </div>
+            <div class="bg-yellow-100 p-4 rounded-xl text-center shadow-md">
+                <p class="text-2xl font-bold text-yellow-800" id="pending-count">0</p>
+                <p class="text-sm text-yellow-600">Pending</p>
+            </div>
+            <div class="bg-orange-100 p-4 rounded-xl text-center shadow-md">
+                <p class="text-2xl font-bold text-orange-800" id="ongoing-count">0</p>
+                <p class="text-sm text-orange-600">Ongoing</p>
+            </div>
+            <div class="bg-green-100 p-4 rounded-xl text-center shadow-md">
+                <p class="text-2xl font-bold text-green-800" id="completed-count">0</p>
+                <p class="text-sm text-green-600">Completed</p>
+            </div>
+        </div>
+
+        <!-- AI-powered Summary Button -->
+        <div class="mb-8">
+             <button id="summarize-btn" class="w-full bg-blue-600 text-white font-bold py-3 px-6 rounded-xl shadow-md hover:bg-blue-700 transition-colors duration-300 text-lg flex items-center justify-center">
+                Pending Issues
+             </button>
+        </div>
+
+        <!-- Issues List -->
+        <div>
+            <h3 class="text-2xl font-bold text-gray-700 mb-4">All Reports</h3>
+            <div id="issues-list" class="space-y-4">
+                <!-- Issues will be dynamically added here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- AI Response Modal -->
+    <div id="response-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn">&times;</span>
+            <h3 class="text-xl font-bold text-gray-800 mb-4">Pending Issues</h3>
+            <div id="response-text" class="bg-gray-100 p-4 rounded-lg text-gray-700 whitespace-pre-wrap"></div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase Initialization
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Authenticate
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        if (initialAuthToken) {
+            signInWithCustomToken(auth, initialAuthToken).catch(error => console.error("Firebase auth error:", error));
+        } else {
+            signInAnonymously(auth).catch(error => console.error("Firebase auth error:", error));
+        }
+
+        // Admin password check (NOTE: This is for demonstration only. A real app would use secure backend authentication.)
+        const adminPassword = 'admin123';
+        const loginContainer = document.getElementById('login-container');
+        const dashboardContainer = document.getElementById('dashboard-container');
+        const passwordInput = document.getElementById('admin-password');
+        const loginBtn = document.getElementById('login-btn');
+        const loginStatus = document.getElementById('login-status');
+        const logoutBtn = document.getElementById('logout-btn');
+
+        // Modal Elements
+        const responseModal = document.getElementById('response-modal');
+        const responseTextEl = document.getElementById('response-text');
+        const closeBtn = document.querySelector('.close-btn');
+
+        closeBtn.onclick = function() {
+            responseModal.style.display = 'none';
+        }
+        window.onclick = function(event) {
+            if (event.target == responseModal) {
+                responseModal.style.display = 'none';
+            }
+        }
+
+        loginBtn.addEventListener('click', () => {
+            if (passwordInput.value === adminPassword) {
+                loginContainer.classList.add('hidden');
+                dashboardContainer.classList.remove('hidden');
+                // Start listening for issues after login
+                setupRealtimeListener();
+            } else {
+                loginStatus.textContent = 'Incorrect password.';
+                loginStatus.classList.remove('hidden');
+            }
+        });
+
+        logoutBtn.addEventListener('click', () => {
+            dashboardContainer.classList.add('hidden');
+            loginContainer.classList.remove('hidden');
+            passwordInput.value = '';
+        });
+
+        // Dashboard counters
+        const totalCountEl = document.getElementById('total-count');
+        const pendingCountEl = document.getElementById('pending-count');
+        const ongoingCountEl = document.getElementById('ongoing-count');
+        const completedCountEl = document.getElementById('completed-count');
+        const issuesListEl = document.getElementById('issues-list');
+        const summarizeBtn = document.getElementById('summarize-btn');
+
+        let unsubscribeFromIssues = null;
+        let allIssues = [];
+
+        // Function to call the Gemini API
+        async function callGeminiApi(systemPrompt, userQuery) {
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                tools: [{ "google_search": {} }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+            };
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const result = await response.json();
+            const candidate = result.candidates?.[0];
+            return candidate?.content?.parts?.[0]?.text || "Could not generate a response.";
+        }
+
+        // Summarize button handler
+        summarizeBtn.addEventListener('click', async () => {
+            const pendingIssues = allIssues.filter(issue => issue.status === 'Pending');
+            if (pendingIssues.length === 0) {
+                responseTextEl.textContent = "There are no pending issues.";
+                responseModal.style.display = 'block';
+                return;
+            }
+
+            summarizeBtn.textContent = 'Generating...';
+            summarizeBtn.disabled = true;
+
+            const issueText = pendingIssues.map((issue, index) => `${index + 1}. Category: ${issue.category}, Description: ${issue.description}`).join('\n');
+            const systemPrompt = "You are a helpful admin assistant. Your task is to provide a very brief, high-level summary of the pending issues, focusing on the most common problems or recurring themes. Use a professional and concise tone. Do not provide a long list of all issues.";
+            const userQuery = `Summarize the following pending civic issues:\n\n${issueText}`;
+
+            const summary = await callGeminiApi(systemPrompt, userQuery);
+
+            responseTextEl.textContent = summary;
+            responseModal.style.display = 'block';
+
+            summarizeBtn.textContent = 'Pending Issues';
+            summarizeBtn.disabled = false;
+        });
+
+        function setupRealtimeListener() {
+            if (unsubscribeFromIssues) {
+                unsubscribeFromIssues();
+            }
+
+            // FIX: Changed the collection path to a public path to resolve the permission error.
+            // You will also need to update the index.html file to save reports to this same path.
+            const collectionPath = `/artifacts/${appId}/public/data/issues`;
+            const issuesCollection = collection(db, collectionPath);
+            console.log(`Listening for issues at: ${collectionPath}`);
+
+            unsubscribeFromIssues = onSnapshot(issuesCollection, (snapshot) => {
+                let total = 0;
+                let pending = 0;
+                let ongoing = 0;
+                let completed = 0;
+                issuesListEl.innerHTML = '';
+                allIssues = [];
+
+                snapshot.forEach((doc) => {
+                    const issue = doc.data();
+                    const docId = doc.id;
+                    allIssues.push({ id: docId, ...issue });
+
+                    total++;
+                    if (issue.status === 'Pending') pending++;
+                    else if (issue.status === 'Ongoing') ongoing++;
+                    else if (issue.status === 'Completed') completed++;
+                    
+                    // Create an issue card
+                    const card = document.createElement('div');
+                    card.classList.add('bg-white', 'rounded-xl', 'p-4', 'shadow', 'border', 'border-gray-200');
+                    card.innerHTML = `
+                        <div class="flex justify-between items-start mb-2">
+                            <h4 class="text-lg font-bold text-gray-800">${issue.category}</h4>
+                            <span class="text-sm font-semibold p-1 px-2 rounded-full text-white ${
+                                issue.status === 'Pending' ? 'bg-yellow-500' :
+                                issue.status === 'Ongoing' ? 'bg-orange-500' : 'bg-green-500'
+                            }">${issue.status}</span>
+                        </div>
+                        <p class="text-sm text-gray-600 mb-2">${issue.description}</p>
+                        <p class="text-xs text-gray-500 mb-2">
+                            Lat: ${issue.latitude.toFixed(4)}, Lon: ${issue.longitude.toFixed(4)}
+                        </p>
+                        <div class="flex space-x-2 mt-4">
+                            <select class="status-select flex-grow p-2 text-sm rounded-lg border border-gray-300">
+                                <option value="Pending" ${issue.status === 'Pending' ? 'selected' : ''}>Pending</option>
+                                <option value="Ongoing" ${issue.status === 'Ongoing' ? 'selected' : ''}>Ongoing</option>
+                                <option value="Completed" ${issue.status === 'Completed' ? 'selected' : ''}>Completed</option>
+                            </select>
+                            <button class="delete-btn bg-red-500 text-white text-sm px-3 py-1 rounded-lg hover:bg-red-600">Delete</button>
+                            <button class="response-btn bg-purple-500 text-white text-sm px-3 py-1 rounded-lg hover:bg-purple-600 flex items-center">
+                                <span class="mr-1">✨</span>
+                                Response
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Add event listeners for status change and delete
+                    card.querySelector('.status-select').addEventListener('change', async (e) => {
+                        const newStatus = e.target.value;
+                        const docRef = doc(db, collectionPath, docId);
+                        try {
+                            await updateDoc(docRef, { status: newStatus });
+                        } catch (error) {
+                            console.error("Error updating document: ", error);
+                        }
+                    });
+
+                    card.querySelector('.delete-btn').addEventListener('click', async () => {
+                        const docRef = doc(db, collectionPath, docId);
+                        try {
+                            await deleteDoc(docRef);
+                        } catch (error) {
+                            console.error("Error deleting document: ", error);
+                        }
+                    });
+
+                    // Add event listener for AI response button
+                    const responseBtn = card.querySelector('.response-btn');
+                    responseBtn.addEventListener('click', async () => {
+                        responseBtn.disabled = true;
+                        responseBtn.textContent = 'Generating...';
+
+                        const systemPrompt = `You are a helpful admin assistant for a civic issue reporting system. Your task is to draft a polite, professional, and concise message to a user based on their report. The message should acknowledge their report, reference the issue they reported, and mention that it is now being addressed.
+                        
+                        Example tone: "Hello, thank you for your report. We have received your submission regarding [issue description] and we're on it."`;
+
+                        const userQuery = `Draft a response for the following civic issue:
+                        Category: ${issue.category}
+                        Description: ${issue.description}`;
+
+                        const responseDraft = await callGeminiApi(systemPrompt, userQuery);
+                        responseTextEl.textContent = responseDraft;
+                        responseModal.style.display = 'block';
+
+                        responseBtn.disabled = false;
+                        responseBtn.innerHTML = '<span class="mr-1">✨</span>Response';
+                    });
+
+                    issuesListEl.appendChild(card);
+                });
+
+                // Update counts in the dashboard
+                totalCountEl.textContent = total;
+                pendingCountEl.textContent = pending;
+                ongoingCountEl.textContent = ongoing;
+                completedCountEl.textContent = completed;
+            }, (error) => {
+                console.error("Error fetching issues: ", error);
+            });
+        }
+    </script>
+</body>
+</html>
